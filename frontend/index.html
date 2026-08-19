@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voice RAG — #RAGInGoa</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #252836;
+      --border: #2e3144;
+      --text: #e4e6f0;
+      --text2: #9499b3;
+      --accent: #6c5ce7;
+      --accent2: #a29bfe;
+      --green: #00cec9;
+      --red: #ff6b6b;
+      --orange: #fdcb6e;
+      --radius: 12px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    header {
+      width: 100%;
+      padding: 24px 32px;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 { font-size: 1.6rem; font-weight: 700; }
+    header h1 span { color: var(--accent2); }
+    header p { color: var(--text2); font-size: 0.85rem; margin-top: 4px; }
+    main { width: 100%; max-width: 720px; padding: 32px 20px; flex: 1; }
+
+    .input-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .input-row { display: flex; gap: 10px; margin-bottom: 16px; }
+    #queryInput {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: var(--text);
+      font-size: 0.95rem;
+      outline: none;
+    }
+    #queryInput:focus { border-color: var(--accent); }
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 12px 20px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    #sendBtn { background: var(--accent); color: #fff; }
+    #sendBtn:hover { background: var(--accent2); }
+    #sendBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .mic-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    #micSelect {
+      flex: 1;
+      min-width: 180px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: var(--text);
+      font-size: 0.8rem;
+    }
+    .level-wrap { width: 100%; margin-top: 10px; }
+    .level-bar {
+      height: 8px;
+      background: var(--surface2);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .level-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--green);
+      transition: width 0.08s linear;
+    }
+    .level-fill.low { background: var(--red); }
+    .level-fill.ok { background: var(--green); }
+    #levelHint { font-size: 0.75rem; color: var(--text2); margin-top: 6px; }
+    #micBtn {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      background: var(--surface2);
+      border: 2px solid var(--border);
+      color: var(--text);
+      font-size: 1.3rem;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #micBtn.recording {
+      background: var(--red);
+      border-color: var(--red);
+      animation: pulse 1s infinite;
+    }
+    @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(255,107,107,0.4); } 50% { box-shadow: 0 0 0 12px rgba(255,107,107,0); } }
+    #micStatus { font-size: 0.8rem; color: var(--text2); }
+
+    .result-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .result-card.visible { display: block; }
+    .result-card h3 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text2); margin-bottom: 12px; }
+    .answer-text { font-size: 1.05rem; line-height: 1.6; margin-bottom: 16px; }
+    .meta-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge.green { background: rgba(0,206,201,0.15); color: var(--green); }
+    .badge.orange { background: rgba(253,203,110,0.15); color: var(--orange); }
+    .badge.red { background: rgba(255,107,107,0.15); color: var(--red); }
+    .badge.purple { background: rgba(108,92,231,0.15); color: var(--accent2); }
+
+    .sources-list { list-style: none; padding: 0; }
+    .sources-list li {
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 8px;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      color: var(--text2);
+      border-left: 3px solid var(--accent);
+    }
+    .sources-list li .chunk-id { color: var(--accent2); font-weight: 600; font-size: 0.75rem; display: block; margin-bottom: 4px; }
+
+    .timings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+    }
+    .timing-item {
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 10px 14px;
+      text-align: center;
+    }
+    .timing-item .label { font-size: 0.7rem; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; }
+    .timing-item .value { font-size: 1.1rem; font-weight: 700; color: var(--green); margin-top: 2px; }
+
+    .loading { text-align: center; padding: 40px; color: var(--text2); font-size: 0.9rem; }
+    .error-msg { color: var(--red); margin-top: 8px; font-size: 0.85rem; }
+
+    footer { padding: 16px; text-align: center; color: var(--text2); font-size: 0.75rem; border-top: 1px solid var(--border); width: 100%; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Voice <span>RAG</span> Pipeline</h1>
+    <p>Voice-enabled Retrieval-Augmented Generation &middot; #RAGInGoa 2026</p>
+  </header>
+
+  <main>
+    <div class="input-section">
+      <div class="input-row">
+        <input type="text" id="queryInput" placeholder="Type your question..." />
+        <button id="sendBtn" onclick="submitText()">Search</button>
+      </div>
+      <div class="mic-row">
+        <button id="micBtn" onclick="toggleMic()">&#127908;</button>
+        <select id="micSelect"></select>
+        <span id="micStatus">Click to record audio</span>
+      </div>
+      <div class="level-wrap">
+        <div class="level-bar"><div id="levelFill" class="level-fill"></div></div>
+        <div id="levelHint">Speak — the bar should jump. If it stays still, Windows is using the wrong mic (often a headphone with no boom mic).</div>
+      </div>
+    </div>
+
+    <div id="loadingCard" class="result-card">
+      <div class="loading">Processing your query...</div>
+    </div>
+
+    <div id="answerCard" class="result-card">
+      <h3>Answer</h3>
+      <div id="answerText" class="answer-text"></div>
+      <div class="meta-row" id="metaBadges"></div>
+    </div>
+
+    <div id="sourcesCard" class="result-card">
+      <h3>Retrieved Sources</h3>
+      <ul id="sourcesList" class="sources-list"></ul>
+    </div>
+
+    <div id="timingsCard" class="result-card">
+      <h3>Latency Breakdown</h3>
+      <div id="timingsGrid" class="timings-grid"></div>
+    </div>
+
+    <div id="errorCard" class="result-card">
+      <h3>Error</h3>
+      <p id="errorText" class="error-msg"></p>
+    </div>
+  </main>
+
+  <footer>Built for HH Goa 2026 &middot; MSMARCO-XI + Qdrant + Groq</footer>
+
+  <script>
+    const API_BASE = window.location.origin;
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let isRecording = false;
+    let recordingStartedAt = 0;
+    let peakLevel = 0;
+    let meterContext = null;
+    let meterRaf = 0;
+    let activeStream = null;
+
+    async function loadMics() {
+      const select = document.getElementById('micSelect');
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const listMics = devices.filter(d => d.kind === 'audioinput');
+        select.innerHTML = '';
+        if (!listMics.length) {
+          select.innerHTML = '<option value="">No microphone found</option>';
+          return;
+        }
+        listMics.forEach((d, i) => {
+          const opt = document.createElement('option');
+          opt.value = d.deviceId;
+          opt.textContent = d.label || `Microphone ${i + 1}`;
+          select.appendChild(opt);
+        });
+      } catch (err) {
+        select.innerHTML = '<option value="">Could not list microphones</option>';
+      }
+    }
+
+    navigator.mediaDevices.addEventListener('devicechange', loadMics);
+    loadMics();
+
+    async function submitText() {
+      const query = document.getElementById('queryInput').value.trim();
+      if (!query) return;
+      showLoading();
+      try {
+        const res = await fetch(`${API_BASE}/api/query`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, topK: 5 }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Request failed');
+        renderResult(data);
+      } catch (err) {
+        showError(err.message);
+      }
+    }
+
+    document.getElementById('queryInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submitText();
+    });
+
+    async function toggleMic() {
+      if (isRecording) {
+        stopRecording();
+      } else {
+        startRecording();
+      }
+    }
+
+    function startMeter(stream) {
+      peakLevel = 0;
+      meterContext = new AudioContext();
+      const source = meterContext.createMediaStreamSource(stream);
+      const analyser = meterContext.createAnalyser();
+      analyser.fftSize = 512;
+      source.connect(analyser);
+      const data = new Uint8Array(analyser.fftSize);
+      const fill = document.getElementById('levelFill');
+      const hint = document.getElementById('levelHint');
+
+      const tick = () => {
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) {
+          const v = (data[i] - 128) / 128;
+          sum += v * v;
+        }
+        const rms = Math.sqrt(sum / data.length);
+        peakLevel = Math.max(peakLevel, rms);
+        const pct = Math.min(100, Math.round(rms * 280));
+        fill.style.width = pct + '%';
+        fill.className = 'level-fill ' + (pct < 8 ? 'low' : 'ok');
+        hint.textContent = pct < 8
+          ? 'Bar is flat — this mic is not hearing you. Switch device in the dropdown (use laptop mic, not headset).'
+          : 'Hearing you. Keep speaking, then click the mic to stop.';
+        meterRaf = requestAnimationFrame(tick);
+      };
+      tick();
+    }
+
+    function stopMeter() {
+      cancelAnimationFrame(meterRaf);
+      if (meterContext) {
+        meterContext.close().catch(() => {});
+        meterContext = null;
+      }
+    }
+
+    async function startRecording() {
+      try {
+        const strDeviceId = document.getElementById('micSelect').value;
+        const dictAudio = {
+          echoCancellation: true,
+          noiseSuppression: true,
+          channelCount: 1,
+        };
+        if (strDeviceId) dictAudio.deviceId = { exact: strDeviceId };
+        activeStream = await navigator.mediaDevices.getUserMedia({ audio: dictAudio });
+        await loadMics();
+        const strMime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '');
+        mediaRecorder = strMime ? new MediaRecorder(activeStream, { mimeType: strMime }) : new MediaRecorder(activeStream);
+        audioChunks = [];
+        mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
+        mediaRecorder.onstop = () => {
+          stopMeter();
+          if (activeStream) activeStream.getTracks().forEach(t => t.stop());
+          submitAudio(mediaRecorder.mimeType || 'audio/webm');
+        };
+        startMeter(activeStream);
+        mediaRecorder.start(250);
+        recordingStartedAt = Date.now();
+        isRecording = true;
+        document.getElementById('micBtn').classList.add('recording');
+        document.getElementById('micStatus').textContent = 'Recording... speak until the green bar moves, then stop';
+      } catch (err) {
+        showError('Microphone access denied: ' + err.message);
+      }
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+      }
+      isRecording = false;
+      document.getElementById('micBtn').classList.remove('recording');
+      document.getElementById('micStatus').textContent = 'Processing audio...';
+    }
+
+    async function submitAudio(mimeType) {
+      showLoading();
+      try {
+        const intMs = Date.now() - recordingStartedAt;
+        if (intMs < 1500) {
+          showError('Recording was too short. Hold the mic for at least 2 seconds and speak clearly.');
+          document.getElementById('micStatus').textContent = 'Click to record audio';
+          return;
+        }
+        if (peakLevel < 0.02) {
+          showError('Almost no voice was captured. Your headphone mic is likely muted or not the input device. Unplug the headset and pick the laptop microphone in the dropdown.');
+          document.getElementById('micStatus').textContent = 'Click to record audio';
+          return;
+        }
+        const blob = new Blob(audioChunks, { type: mimeType || 'audio/webm' });
+        if (blob.size < 2000) {
+          showError('No audio captured. Check the microphone and try again.');
+          document.getElementById('micStatus').textContent = 'Click to record audio';
+          return;
+        }
+        const strExt = (mimeType || 'audio/webm').includes('ogg') ? 'ogg' : 'webm';
+        const formData = new FormData();
+        formData.append('audio', blob, `recording.${strExt}`);
+        formData.append('language', 'unknown');
+        formData.append('topK', '5');
+        const res = await fetch(`${API_BASE}/api/voice`, { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Request failed');
+        renderResult(data);
+        document.getElementById('micStatus').textContent = 'Click to record audio';
+      } catch (err) {
+        showError(err.message);
+        document.getElementById('micStatus').textContent = 'Click to record audio';
+      }
+    }
+
+    function showLoading() {
+      hideAll();
+      document.getElementById('loadingCard').classList.add('visible');
+    }
+
+    function hideAll() {
+      ['loadingCard', 'answerCard', 'sourcesCard', 'timingsCard', 'errorCard'].forEach(id => {
+        document.getElementById(id).classList.remove('visible');
+      });
+    }
+
+    function showError(msg) {
+      hideAll();
+      document.getElementById('errorText').textContent = msg;
+      document.getElementById('errorCard').classList.add('visible');
+    }
+
+    function renderResult(data) {
+      hideAll();
+
+      // Answer
+      document.getElementById('answerText').textContent = data.answer || 'No answer generated.';
+      const badges = document.getElementById('metaBadges');
+      badges.innerHTML = '';
+      if (data.refused) {
+        badges.innerHTML += `<span class="badge red">Refused</span>`;
+        if (data.refusalReason) badges.innerHTML += `<span class="badge orange">${data.refusalReason.slice(0, 60)}</span>`;
+      } else {
+        if (data.grounded) badges.innerHTML += `<span class="badge green">Grounded</span>`;
+        else badges.innerHTML += `<span class="badge orange">Ungrounded</span>`;
+        badges.innerHTML += `<span class="badge purple">Confidence: ${(data.confidence * 100).toFixed(0)}%</span>`;
+      }
+      if (data.query) {
+        document.getElementById('queryInput').value = data.query;
+      }
+      document.getElementById('answerCard').classList.add('visible');
+
+      // Sources
+      const sourcesList = document.getElementById('sourcesList');
+      sourcesList.innerHTML = '';
+      const chunks = data.retrievedChunks || [];
+      if (chunks.length > 0) {
+        chunks.slice(0, 5).forEach(c => {
+          const li = document.createElement('li');
+          li.innerHTML = `<span class="chunk-id">${c.chunk_id || c.doc_id || 'unknown'}</span>${(c.text || '').slice(0, 300)}`;
+          sourcesList.appendChild(li);
+        });
+        document.getElementById('sourcesCard').classList.add('visible');
+      }
+
+      // Timings
+      const timings = data.timings || {};
+      const grid = document.getElementById('timingsGrid');
+      grid.innerHTML = '';
+      const timingLabels = {
+        stt_ms: 'STT', input_guardrail_ms: 'Input Guard',
+        retrieval_ms: 'Retrieval', generation_ms: 'Generation',
+        output_guardrail_ms: 'Output Guard', total_ms: 'Total',
+      };
+      for (const [key, label] of Object.entries(timingLabels)) {
+        if (timings[key] !== undefined) {
+          grid.innerHTML += `<div class="timing-item"><div class="label">${label}</div><div class="value">${timings[key].toFixed(1)}ms</div></div>`;
+        }
+      }
+      if (data.totalLatencyMs) {
+        if (!timings.total_ms) {
+          grid.innerHTML += `<div class="timing-item"><div class="label">Total</div><div class="value">${data.totalLatencyMs.toFixed(1)}ms</div></div>`;
+        }
+      }
+      if (grid.innerHTML) {
+        document.getElementById('timingsCard').classList.add('visible');
+      }
+    }
+  </script>
+</body>
+</html>
